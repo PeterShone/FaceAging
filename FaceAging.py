@@ -7,10 +7,6 @@
 # Zhifei Zhang, Yang Song, and Hairong Qi. "Age Progression/Regression by Conditional Adversarial Autoencoder."
 # IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2017.
 #
-# Date:     Mar. 24th, 2017
-#
-# Please cite above paper if you use this code
-#
 
 from __future__ import division
 import os
@@ -132,7 +128,7 @@ class FaceAging(object):
 
         # loss function of discriminator on z
         
-        # here try least square loss function
+        # here we use the least square loss function
         #self.D_z_loss_prior = tf.reduce_mean(
         #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_z_prior_logits, labels=tf.ones_like(self.D_z_prior_logits))
         #)
