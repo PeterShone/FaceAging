@@ -476,7 +476,6 @@ class FaceAging(object):
         # output
         return tf.nn.tanh(current)
 
-
     def generator(self, z, y, gender, reuse_variables=False, enable_tile_label=True, tile_ratio=1.0):
         enable_bn=True
         if reuse_variables:
@@ -526,8 +525,7 @@ class FaceAging(object):
                     reuse=reuse_variables
                 )            
             current = tf.nn.relu(current)
-
-            #Referring to another model ,Here we add one extra layer
+            #Refer to another model ,Here we add one extra layer
             name1='G_deconv_stride1' + str(i)
             current = deconv2d(
                     input_map=current,

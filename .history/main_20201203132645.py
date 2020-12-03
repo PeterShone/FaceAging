@@ -28,7 +28,7 @@ FLAGS = parser.parse_args()
 
 def main(_):
 
-    # print our settings
+    # print settings
     import pprint
     pprint.pprint(FLAGS)
 
