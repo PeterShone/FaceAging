@@ -22,7 +22,6 @@ from scipy.io import savemat
 from ops import *
 
 
-
 class FaceAging(object):
     def __init__(self,
                  session,  # TensorFlow session
@@ -31,7 +30,7 @@ class FaceAging(object):
                  size_batch=100,  # mini-batch size for training and testing, must be square of an integer
                  num_input_channels=3,  # number of channels of input images
                  num_encoder_channels=64,  # number of channels of the first conv layer of encoder
-                 num_z_channels=70,  # number of channels of the layer z (noise or code)
+                 num_z_channels=50,  # number of channels of the layer z (noise or code)
                  num_categories=10,  # number of categories (age segments) in the training dataset
                  num_gen_channels=1024,  # number of channels of the first deconv layer of generator
                  enable_tile_label=True,  # enable to tile the label
@@ -79,7 +78,7 @@ class FaceAging(object):
             name='z_prior'
         )
         # ************************************* build the graph *******************************************************
-        print ('\n\tBuilding graph ...')
+        print '\n\tBuilding graph ...'
 
         # encoder: input image --> z
         self.z = self.encoder(
@@ -131,46 +130,33 @@ class FaceAging(object):
         self.EG_loss = tf.reduce_mean(tf.abs(self.input_image - self.G))  # L1 loss
 
         # loss function of discriminator on z
-        
         # here try least square loss function
-        #self.D_z_loss_prior = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_z_prior_logits, labels=tf.ones_like(self.D_z_prior_logits))
-        #)
+
         self.D_z_loss_prior = 1.0/2.0*tf.reduce_sum(
             (self.D_z_prior_logits-tf.ones_like(self.D_z_prior_logits))**2
         )        
-        #self.D_z_loss_z = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_z_logits, labels=tf.zeros_like(self.D_z_logits))
-        #)
+
         self.D_z_loss_z = 1.0/2.0*tf.reduce_sum(
             (self.D_z_logits-tf.zeros_like(self.D_z_logits))**2
         )           
-        #self.E_z_loss = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_z_logits, labels=tf.ones_like(self.D_z_logits))
-        #)
+
         self.E_z_loss = 1.0/2.0*tf.reduce_sum(
             (self.D_z_logits-tf.ones_like(self.D_z_logits))**2
         )                 
         # loss function of discriminator on image
         
-        #self.D_img_loss_input = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_input_logits, labels=tf.ones_like(self.D_input_logits))
-        #)
         self.D_img_loss_input = 1.0/2.0*tf.reduce_sum(
             (self.D_input_logits-tf.ones_like(self.D_input_logits))**2
         )
-        #self.D_img_loss_G = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_G_logits, labels=tf.zeros_like(self.D_G_logits))
-        #)
+
         self.D_img_loss_G = 1.0/2.0*tf.reduce_sum(
             (self.D_G_logits-tf.zeros_like(self.D_G_logits))**2
         )
-        #self.G_img_loss = tf.reduce_mean(
-        #    tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_G_logits, labels=tf.ones_like(self.D_G_logits))
-        #)
+
         self.G_img_loss = 1.0/2.0*tf.reduce_sum(
             (self.D_G_logits-tf.ones_like(self.D_G_logits))**2
         )
+
         # total variation to smooth the generated image
         tv_y_size = self.size_image
         tv_x_size = self.size_image
@@ -214,7 +200,7 @@ class FaceAging(object):
               enable_shuffle=True,  # enable shuffle of the dataset
               use_trained_model=True,  # use the saved checkpoint to initialize the network
               use_init_model=True,  # use the init model to initialize the network
-              weigts=(0.0001, 0.0001, 0)  # the weights of adversarial loss and TV loss
+              weigts=(0.0001, 0, 0)  # the weights of adversarial loss and TV loss
               ):
 
         # *************************** load file names of images ******************************************************
@@ -352,7 +338,7 @@ class FaceAging(object):
 
 
         # epoch iteration
-        num_batches = min(len(file_names) // self.size_batch,100)
+        num_batches = len(file_names) // self.size_batch
         for epoch in range(num_epochs):
             if enable_shuffle:
                 np.random.shuffle(file_names)
@@ -461,8 +447,9 @@ class FaceAging(object):
             self.sample(sample_images, sample_label_age, sample_label_gender, name)
             self.test(sample_images, sample_label_gender, name)
 
-            # save checkpoint for each 5 epoch            
-            self.save_checkpoint()
+            # save checkpoint for each 5 epoch
+            if np.mod(epoch, 5) == 4:
+                self.save_checkpoint()
 
         # save the trained model
         self.save_checkpoint()
@@ -498,7 +485,6 @@ class FaceAging(object):
         return tf.nn.tanh(current)
 
     def generator(self, z, y, gender, reuse_variables=False, enable_tile_label=True, tile_ratio=1.0):
-        enable_bn=True
         if reuse_variables:
             tf.get_variable_scope().reuse_variables()
         num_layers = int(np.log2(self.size_image)) - int(self.size_kernel / 2)
@@ -532,43 +518,10 @@ class FaceAging(object):
                                   size_mini_map * 2 ** (i + 1),
                                   size_mini_map * 2 ** (i + 1),
                                   int(self.num_gen_channels / 2 ** (i + 1))],
-                    size_kernel=3,
-                    name=name,
-                    stride=2
-                
+                    size_kernel=self.size_kernel,
+                    name=name
                 )
-            if enable_bn:
-                current = tf.contrib.layers.batch_norm(
-                    current,
-                    scale=False,
-                    is_training=True,
-                    scope='G_deconv_bn' + str(i),
-                    reuse=reuse_variables
-                )            
             current = tf.nn.relu(current)
-            #Refer to another model ,Here we add one extra layer
-            #name1='G_deconv_stride1' + str(i)
-            #current = deconv2d(
-            #        input_map=current,
-            #        output_shape=[self.size_batch,
-            #                      size_mini_map * 2 ** (i + 1),
-            #                      size_mini_map * 2 ** (i + 1),
-            #                      int(self.num_gen_channels / 2 ** (i + 1))],
-            #        size_kernel=3,
-            #        name=name1,
-            #        stride=1
-            #    
-            #    ) 
-            #if enable_bn:
-            #    current = tf.contrib.layers.batch_norm(
-            #       current,
-            #       scale=False,
-            #       is_training=True,
-            #        scope='G_deconv_stride1_bn' + str(i),
-            #        reuse=reuse_variables
-            #    )                        
-            #current = tf.nn.relu(current)
-            
         name = 'G_deconv' + str(i+1)
         current = deconv2d(
             input_map=current,
@@ -590,8 +543,7 @@ class FaceAging(object):
                           self.num_input_channels],
             size_kernel=self.size_kernel,
             stride=1,
-            name=name,
-            BN=0
+            name=name
         )
 
         # output
@@ -652,28 +604,6 @@ class FaceAging(object):
                     reuse=reuse_variables
                 )
             current = tf.nn.relu(current)
-            
-            
-            #Refer to another model ,Here we add one extra layer
-            #name1='D_img_stride1' + str(i)
-            #current = conv2d(
-            #        input_map=current,
-            #        num_output_channels=num_hidden_layer_channels[i],
-            #        size_kernel=self.size_kernel,
-            #        name=name1,
-            #        stride=1
-            #    )
-            #if enable_bn:
-            #    current = tf.contrib.layers.batch_norm(
-            #        current,
-            #        scale=False,
-            #        is_training=is_training,
-            #        scope='D_img_stride1_bn' + str(i),
-            #        reuse=reuse_variables
-            #    )                        
-            #current = tf.nn.relu(current)
-            
-            
             if i == 0:
                 current = concat_label(current, y)
                 current = concat_label(current, gender, int(self.num_categories / 2))
@@ -790,7 +720,7 @@ class FaceAging(object):
         num_samples = int(np.sqrt(self.size_batch))
         file_names = glob(testing_samples_dir)
         if len(file_names) < num_samples:
-            print ('The number of testing images is must larger than %d' % num_samples)
+            print 'The number of testing images is must larger than %d' % num_samples
             exit(0)
         sample_files = file_names[0:num_samples]
         sample = [load_image(
@@ -818,6 +748,6 @@ class FaceAging(object):
         self.test(images, gender_male, 'test_as_male.png')
         self.test(images, gender_female, 'test_as_female.png')
 
-        print ('\n\tDone! Results are saved as %s\n' % os.path.join(self.save_dir, 'test', 'test_as_xxx.png'))
+        print '\n\tDone! Results are saved as %s\n' % os.path.join(self.save_dir, 'test', 'test_as_xxx.png')
 
 
